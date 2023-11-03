@@ -25,4 +25,15 @@ contract MyHook is BaseHook, ERC1155 {
                 afterDonate: false
         });
     }
+
+    function beforeSwap(
+    address,
+    IPoolManager.PoolKey calldata key,
+    IPoolManager.SwapParams calldata
+    ) external override poolManagerOnly returns (bytes4) {
+        // doSomethingInteresting
+        return ThisContract.beforeSwap.selector;
+    }
+
+
 }
