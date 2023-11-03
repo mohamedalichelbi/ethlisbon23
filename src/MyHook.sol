@@ -4,7 +4,7 @@ pragma solidity ^0.8.21;
 import {BaseHook} from "periphery-next/BaseHook.sol";
 import {ERC1155} from "openzeppelin-contracts/contracts/token/ERC1155/ERC1155.sol";
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
-// import {PoolKey} from "v4-core/contracts/types/PoolKey.sol";
+import {PoolKey} from "v4-core/types/PoolKey.sol";
 import {Hooks} from "v4-core/libraries/Hooks.sol";
 
 
@@ -29,11 +29,12 @@ contract MyHook is BaseHook, ERC1155 {
 
     function beforeSwap(
     address,
-    IPoolManager.PoolKey calldata key,
-    IPoolManager.SwapParams calldata
-    ) external override poolManagerOnly returns (bytes4) {
+    PoolKey calldata key,
+    IPoolManager.SwapParams calldata,
+    bytes calldata
+    ) external override returns (bytes4) {
         // doSomethingInteresting
-        return ThisContract.beforeSwap.selector;
+        return MyHook.beforeSwap.selector;
     }
 
 
