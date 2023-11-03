@@ -62,7 +62,12 @@ contract MyHookTest is Test, GasSnapshot {
     // i.e. sqrt(1) * 2^96
     // This is used as the initial price for the pool 
     // as we add equal amounts of token0 and token1 to the pool during setUp
-    uint160 constant SQRT_RATIO_1_1 = 79228162514264337593543950336;
+    uint160 public constant SQRT_RATIO_1_1 = 79228162514264337593543950336;
+    uint160 public constant SQRT_RATIO_1_2 = 56022770974786139918731938227;
+    // uint160 public constant SQRT_RATIO_1_4 = 39614081257132168796771975168;
+    // uint160 public constant SQRT_RATIO_2_1 = 112045541949572279837463876454;
+    // uint160 public constant SQRT_RATIO_4_1 = 158456325028528675187087900672;
+    // uint160 public constant SQRT_RATIO_121_100 = 87150978765690771352898345369;
 
     bytes internal constant ZERO_BYTES = bytes("");
 
@@ -172,7 +177,17 @@ contract MyHookTest is Test, GasSnapshot {
         _addLiquidityToPool();
     }
 
-    function test_HelloWorld() public {
+    function test_tests() public {
         assertEq(true, true);
+    }
+
+    function test_swap() public {
+        IPoolManager.SwapParams memory params =
+            IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 10000000, sqrtPriceLimitX96: SQRT_RATIO_1_2});
+    
+        PoolSwapTest.TestSettings memory testSettings =
+            PoolSwapTest.TestSettings({withdrawTokens: true, settleUsingTransfer: true});
+
+        swapRouter.swap(poolKey, params, testSettings, ZERO_BYTES);
     }
 }
