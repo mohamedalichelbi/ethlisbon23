@@ -64,6 +64,8 @@ contract MyHookTest is Test, GasSnapshot {
     // as we add equal amounts of token0 and token1 to the pool during setUp
     uint160 constant SQRT_RATIO_1_1 = 79228162514264337593543950336;
 
+    bytes internal constant ZERO_BYTES = bytes("");
+
     function _deployERC20Tokens() private {
         TestERC20 tokenA = new TestERC20(2 ** 128);
         TestERC20 tokenB = new TestERC20(2 ** 128);
@@ -115,7 +117,7 @@ contract MyHookTest is Test, GasSnapshot {
         poolId = poolKey.toId();
         
         // Initialize the new pool with initial price ratio = 1
-        poolManager.initialize(poolKey, SQRT_RATIO_1_1);
+        poolManager.initialize(poolKey, SQRT_RATIO_1_1, ZERO_BYTES);
     }
 
     function _addLiquidityToPool() private {
@@ -135,13 +137,15 @@ contract MyHookTest is Test, GasSnapshot {
         // Add liquidity from -60 to +60
         modifyPositionRouter.modifyPosition(
             poolKey,
-            IPoolManager.ModifyPositionParams(-60, 60, 10 ether)
+            IPoolManager.ModifyPositionParams(-60, 60, 10 ether),
+            ZERO_BYTES
         );
 
         // Add liquidity from -120 to +120
         modifyPositionRouter.modifyPosition(
             poolKey,
-            IPoolManager.ModifyPositionParams(-120, 120, 10 ether)
+            IPoolManager.ModifyPositionParams(-120, 120, 10 ether),
+            ZERO_BYTES
         );
 
         // Add liquidity from minimum tick to maximum tick
@@ -151,7 +155,8 @@ contract MyHookTest is Test, GasSnapshot {
                 TickMath.minUsableTick(60),
                 TickMath.maxUsableTick(60),
                 50 ether
-            )
+            ),
+            ZERO_BYTES
         );
 
         // Approve the tokens for swapping through the swapRouter
@@ -165,5 +170,9 @@ contract MyHookTest is Test, GasSnapshot {
         _stubValidateHookAddress();
         _initializePool();
         _addLiquidityToPool();
+    }
+
+    function test_HelloWorld() public {
+        assertEq(true, true);
     }
 }

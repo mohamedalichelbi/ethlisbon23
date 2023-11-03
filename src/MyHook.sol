@@ -7,7 +7,7 @@ import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {Hooks} from "v4-core/libraries/Hooks.sol";
 
 
-contract TakeProfitsHook is BaseHook, ERC1155 {
+contract MyHook is BaseHook, ERC1155 {
 
     // Initialize BaseHook and ERC1155 parent contracts in the constructor
     constructor(IPoolManager _poolManager, string memory _uri) BaseHook(_poolManager) ERC1155(_uri) {}

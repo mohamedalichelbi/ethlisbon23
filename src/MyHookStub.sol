@@ -7,7 +7,7 @@ import {BaseHook} from "periphery-next/BaseHook.sol";
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {Hooks} from "v4-core/libraries/Hooks.sol";
 
-contract TakeProfitsStub is MyHook {
+contract MyHookStub is MyHook {
     constructor(
         IPoolManager _poolManager,
         MyHook addressToEtch
