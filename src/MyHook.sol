@@ -109,13 +109,24 @@ contract MyHook is BaseHook, ILockCallback {
 
         console.logString("(1) withdrawing all liquidity...");
         PoolId poolId = key.toId();
+
+        uint128 fullRangeLiquidity = poolManager.getLiquidity(
+            poolId, 
+            address(this),
+            MIN_TICK,
+            MAX_TICK,
+        ).toInt256();
+
+        console.logString("fullRangeLiquidity:")
+        console.logUint(fullRangeLiquidity)
+
         BalanceDelta balanceDelta = _modifyPosition(
             address(this),
             key,
             IPoolManager.ModifyPositionParams({
                 tickLower: MIN_TICK,
                 tickUpper: MAX_TICK,
-                liquidityDelta: -(poolManager.getLiquidity(poolId).toInt256())
+                liquidityDelta: -(fullRangeLiquidity)
             })
         );
 

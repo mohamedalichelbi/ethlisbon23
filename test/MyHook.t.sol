@@ -137,9 +137,9 @@ contract MyHookTest is Test, GasSnapshot {
 
         // Add liquidity from -120 to +120
         hook.modifyPosition(
-            address(this),
+            address(hook),
             poolKey,
-            IPoolManager.ModifyPositionParams(-120, 120, 10 ether)
+            IPoolManager.ModifyPositionParams(-60, 60, -1 ether)
         );
 
         // Add liquidity from MIN_TICK to MAX_TICK
