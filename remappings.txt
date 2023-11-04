@@ -11,3 +11,4 @@ openzeppelin/=lib/periphery-next/lib/openzeppelin-contracts/contracts/
 periphery-next/=lib/periphery-next/contracts/
 solmate/=lib/periphery-next/lib/solmate/src/
 v4-core/=lib/periphery-next/lib/v4-core/contracts/
+chronicle-std/=lib/chronicle-std/

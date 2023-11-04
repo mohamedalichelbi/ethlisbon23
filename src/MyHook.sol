@@ -21,9 +21,12 @@ import {FixedPoint96} from "v4-core/libraries/FixedPoint96.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {IChronicle} from "chronicle-std/src/IChronicle.sol";
 import "forge-std/console.sol";
 
-
+interface ISelfKisser {
+    function selfKiss(address oracle, address who) external;
+}   
 
 contract MyHook is BaseHook, ILockCallback {
     using CurrencyLibrary for Currency;
@@ -38,6 +41,9 @@ contract MyHook is BaseHook, ILockCallback {
     int24 internal constant MAX_TICK = -MIN_TICK;
 
     int256 internal constant MAX_INT = type(int256).max;
+
+    IChronicle constant oracle = IChronicle(address(0xc8A1F9461115EF3C1E84Da6515A88Ea49CA97660));
+    ISelfKisser constant selfKisser = ISelfKisser(address(0x0Dcc19657007713483A5cA76e6A7bbe5f56EA37d));
 
     struct CallbackData {
         address sender;
@@ -136,6 +142,15 @@ contract MyHook is BaseHook, ILockCallback {
         if (delta.amount1() < 0) {
             poolManager.take(key.currency1, sender, uint128(-delta.amount1()));
         }
+    }
+
+    function kissSelf() external {
+        selfKisser.selfKiss(address(0xc8A1F9461115EF3C1E84Da6515A88Ea49CA97660), address(this));
+    }
+
+    function fetchPrice() external {
+        uint price = oracle.read();
+        console.logInt(int256(price));
     }
 
 }

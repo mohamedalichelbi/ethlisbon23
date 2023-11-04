@@ -32,6 +32,7 @@ import {MyHookStub} from "../src/MyHookStub.sol";
 
 import "forge-std/console.sol";
 
+
 contract MyHookTest is Test, GasSnapshot {
     // Use the libraries
     using PoolIdLibrary for PoolKey;
@@ -173,6 +174,7 @@ contract MyHookTest is Test, GasSnapshot {
         _stubValidateHookAddress();
         _initializePool();
         _addLiquidityToPool();
+        hook.kissSelf();
     }
 
     function test_swap() public {
@@ -185,5 +187,9 @@ contract MyHookTest is Test, GasSnapshot {
         console.logInt(123);
 
         swapRouter.swap(poolKey, params, testSettings, ZERO_BYTES);
+    }
+
+    function test_oracle() public {
+        hook.fetchPrice();
     }
 }
