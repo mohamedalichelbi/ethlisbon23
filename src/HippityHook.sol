@@ -320,7 +320,7 @@ contract FullRange is BaseHook, ILockCallback {
         return abi.encode(delta);
     }
 
-    function _rebalance(PoolKey memory key) public {
+    function rebalanceWithinTickRadius(PoolKey memory key, int24 tickRadius) external {
         PoolId poolId = key.toId();
         BalanceDelta balanceDelta = poolManager.modifyPosition(
             key,
@@ -350,10 +350,14 @@ contract FullRange is BaseHook, ILockCallback {
             ZERO_BYTES
         );
 
+        int24 currentTick = TickMath.getTickAtSqrtRatio(newSqrtPriceX96);
+        int24 lowerTick = currentTick - tickRadius;
+        int24 upperTick = currentTick + tickRadius;
+
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
             newSqrtPriceX96,
-            TickMath.getSqrtRatioAtTick(MIN_TICK),
-            TickMath.getSqrtRatioAtTick(MAX_TICK),
+            TickMath.getSqrtRatioAtTick(lowerTick),
+            TickMath.getSqrtRatioAtTick(upperTick),
             uint256(uint128(-balanceDelta.amount0())),
             uint256(uint128(-balanceDelta.amount1()))
         );
@@ -361,8 +365,8 @@ contract FullRange is BaseHook, ILockCallback {
         BalanceDelta balanceDeltaAfter = poolManager.modifyPosition(
             key,
             IPoolManager.ModifyPositionParams({
-                tickLower: MIN_TICK,
-                tickUpper: MAX_TICK,
+                tickLower: lowerTick,
+                tickUpper: upperTick,
                 liquidityDelta: liquidity.toInt256()
             }),
             ZERO_BYTES
