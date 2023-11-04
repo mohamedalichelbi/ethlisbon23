@@ -60,15 +60,11 @@ contract HippityHook is BaseHook, ILockCallback {
     }
 
     struct AddLiquidityParams {
-        Currency currency0;
-        Currency currency1;
-        uint24 fee;
-        uint256 amount0Desired;
-        uint256 amount1Desired;
-        uint256 amount0Min;
-        uint256 amount1Min;
-        address to;
-        uint256 deadline;
+        // the lower and upper tick of the position
+        int24 tickLower;
+        int24 tickUpper;
+        // how to modify the liquidity
+        uint128 liquidityDelta;
     }
 
     struct RemoveLiquidityParams {
@@ -101,19 +97,10 @@ contract HippityHook is BaseHook, ILockCallback {
         });
     }
 
-    function addLiquidity(AddLiquidityParams calldata params)
+    function addLiquidity(PoolKey memory key, AddLiquidityParams calldata params)
         external
-        ensure(params.deadline)
         returns (uint128 liquidity)
     {
-        PoolKey memory key = PoolKey({
-            currency0: params.currency0,
-            currency1: params.currency1,
-            fee: params.fee,
-            tickSpacing: 60,
-            hooks: IHooks(address(this))
-        });
-
         PoolId poolId = key.toId();
 
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
@@ -124,25 +111,20 @@ contract HippityHook is BaseHook, ILockCallback {
 
         uint128 poolLiquidity = poolManager.getLiquidity(poolId);
 
-        liquidity = LiquidityAmounts.getLiquidityForAmounts(
-            sqrtPriceX96,
-            TickMath.getSqrtRatioAtTick(MIN_TICK),
-            TickMath.getSqrtRatioAtTick(MAX_TICK),
-            params.amount0Desired,
-            params.amount1Desired
-        );
+        liquidity = params.liquidityDelta;
 
-        if (poolLiquidity == 0 && liquidity <= MINIMUM_LIQUIDITY) {
+        if (poolLiquidity == 0 && params.liquidityDelta <= MINIMUM_LIQUIDITY) {
             revert LiquidityDoesntMeetMinimum();
         }
         BalanceDelta addedDelta = modifyPosition(
             key,
             IPoolManager.ModifyPositionParams({
-                tickLower: MIN_TICK,
-                tickUpper: MAX_TICK,
+                tickLower: params.tickLower,
+                tickUpper: params.tickUpper,
                 liquidityDelta: liquidity.toInt256()
             })
         );
+
 
         if (poolLiquidity == 0) {
             // permanently lock the first MINIMUM_LIQUIDITY tokens
@@ -150,11 +132,12 @@ contract HippityHook is BaseHook, ILockCallback {
             UniswapV4ERC20(pool.liquidityToken).mint(address(0), MINIMUM_LIQUIDITY);
         }
 
-        UniswapV4ERC20(pool.liquidityToken).mint(params.to, liquidity);
+        UniswapV4ERC20(pool.liquidityToken).mint(msg.sender, liquidity);
 
-        if (uint128(addedDelta.amount0()) < params.amount0Min || uint128(addedDelta.amount1()) < params.amount1Min) {
-            revert TooMuchSlippage();
-        }
+        // https://www.mysafetysign.com/img/lg/S/slippery-ramp-standing-floor-sign-sf-0412.png
+        // if (uint128(addedDelta.amount0()) < params.amount0Min || uint128(addedDelta.amount1()) < params.amount1Min) {
+        //     revert TooMuchSlippage();
+        // }
     }
 
     function removeLiquidity(RemoveLiquidityParams calldata params)
@@ -248,7 +231,8 @@ contract HippityHook is BaseHook, ILockCallback {
         internal
         returns (BalanceDelta delta)
     {
-        delta = abi.decode(poolManager.lock(abi.encode(CallbackData(msg.sender, key, params))), (BalanceDelta));
+        // reason: 0 (modify position)
+        delta = abi.decode(poolManager.lock(abi.encode(CallbackData(msg.sender, key, params, 0))), (BalanceDelta));
     }
 
     function _settleDeltas(address sender, PoolKey memory key, BalanceDelta delta) internal {
@@ -367,6 +351,61 @@ contract HippityHook is BaseHook, ILockCallback {
             IPoolManager.ModifyPositionParams({
                 tickLower: lowerTick,
                 tickUpper: upperTick,
+                liquidityDelta: liquidity.toInt256()
+            }),
+            ZERO_BYTES
+        );
+
+        // Donate any "dust" from the sqrtRatio change as fees
+        uint128 donateAmount0 = uint128(-balanceDelta.amount0() - balanceDeltaAfter.amount0());
+        uint128 donateAmount1 = uint128(-balanceDelta.amount1() - balanceDeltaAfter.amount1());
+
+        poolManager.donate(key, donateAmount0, donateAmount1, ZERO_BYTES);
+    }
+
+    function _rebalance(PoolKey memory key) public {
+        PoolId poolId = key.toId();
+        BalanceDelta balanceDelta = poolManager.modifyPosition(
+            key,
+            IPoolManager.ModifyPositionParams({
+                tickLower: MIN_TICK,
+                tickUpper: MAX_TICK,
+                liquidityDelta: -(poolManager.getLiquidity(poolId).toInt256())
+            }),
+            ZERO_BYTES
+        );
+
+        uint160 newSqrtPriceX96 = (
+            FixedPointMathLib.sqrt(
+                FullMath.mulDiv(uint128(-balanceDelta.amount1()), FixedPoint96.Q96, uint128(-balanceDelta.amount0()))
+            ) * FixedPointMathLib.sqrt(FixedPoint96.Q96)
+        ).toUint160();
+
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
+
+        poolManager.swap(
+            key,
+            IPoolManager.SwapParams({
+                zeroForOne: newSqrtPriceX96 < sqrtPriceX96,
+                amountSpecified: MAX_INT,
+                sqrtPriceLimitX96: newSqrtPriceX96
+            }),
+            ZERO_BYTES
+        );
+
+        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
+            newSqrtPriceX96,
+            TickMath.getSqrtRatioAtTick(MIN_TICK),
+            TickMath.getSqrtRatioAtTick(MAX_TICK),
+            uint256(uint128(-balanceDelta.amount0())),
+            uint256(uint128(-balanceDelta.amount1()))
+        );
+
+        BalanceDelta balanceDeltaAfter = poolManager.modifyPosition(
+            key,
+            IPoolManager.ModifyPositionParams({
+                tickLower: MIN_TICK,
+                tickUpper: MAX_TICK,
                 liquidityDelta: liquidity.toInt256()
             }),
             ZERO_BYTES

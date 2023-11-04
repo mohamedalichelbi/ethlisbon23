@@ -135,28 +135,25 @@ contract HippityHookTest is Test, GasSnapshot {
         // Then, from minimum possible tick to maximum possible tick
 
         // Add liquidity from -60 to +60
-        hook.modifyPosition(
+        hook.addLiquidity(
             poolKey,
-            IPoolManager.ModifyPositionParams(-60, 60, 10 ether),
-            ZERO_BYTES
+            HippityHook.AddLiquidityParams(-60, 60, 10 ether)
         );
 
         // Add liquidity from -120 to +120
-        hook.modifyPosition(
+        hook.addLiquidity(
             poolKey,
-            IPoolManager.ModifyPositionParams(-120, 120, 10 ether),
-            ZERO_BYTES
+            HippityHook.AddLiquidityParams(-120, 120, 10 ether)
         );
 
         // Add liquidity from minimum tick to maximum tick
-        hook.modifyPosition(
+        hook.addLiquidity(
             poolKey,
-            IPoolManager.ModifyPositionParams(
+            HippityHook.AddLiquidityParams(
                 TickMath.minUsableTick(60),
                 TickMath.maxUsableTick(60),
                 50 ether
-            ),
-            ZERO_BYTES
+            )
         );
 
         // Approve the tokens for swapping through the swapRouter
@@ -186,6 +183,6 @@ contract HippityHookTest is Test, GasSnapshot {
         console.logInt(123);
 
         swapRouter.swap(poolKey, params, testSettings, ZERO_BYTES);
-        hook.extRebalance(poolKey);
+        hook.rebalanceWithinTickRadius(poolKey, 10);
     }
 }

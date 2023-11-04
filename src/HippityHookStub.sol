@@ -11,7 +11,7 @@ contract HippityHookStub is HippityHook {
     constructor(
         IPoolManager _poolManager,
         HippityHook addressToEtch
-    ) HippityHook(_poolManager, "") {}
+    ) HippityHook(_poolManager) {}
 
     // make this a no-op in testing
     function validateHookAddress(BaseHook _this) internal pure override {}
