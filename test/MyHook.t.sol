@@ -189,5 +189,6 @@ contract MyHookTest is Test, GasSnapshot {
             PoolSwapTest.TestSettings({withdrawTokens: true, settleUsingTransfer: true});
 
         swapRouter.swap(poolKey, params, testSettings, ZERO_BYTES);
+        hook.extRebalance(poolKey);
     }
 }
