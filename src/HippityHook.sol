@@ -1,29 +1,29 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.19;
 
-import {IPoolManager} from "@uniswap/v4-core/contracts/interfaces/IPoolManager.sol";
-import {PoolManager} from "@uniswap/v4-core/contracts/PoolManager.sol";
-import {Hooks} from "@uniswap/v4-core/contracts/libraries/Hooks.sol";
-import {BaseHook} from "../../BaseHook.sol";
-import {SafeCast} from "@uniswap/v4-core/contracts/libraries/SafeCast.sol";
-import {IHooks} from "@uniswap/v4-core/contracts/interfaces/IHooks.sol";
-import {CurrencyLibrary, Currency} from "@uniswap/v4-core/contracts/types/Currency.sol";
-import {TickMath} from "@uniswap/v4-core/contracts/libraries/TickMath.sol";
-import {BalanceDelta} from "@uniswap/v4-core/contracts/types/BalanceDelta.sol";
-import {IERC20Minimal} from "@uniswap/v4-core/contracts/interfaces/external/IERC20Minimal.sol";
-import {ILockCallback} from "@uniswap/v4-core/contracts/interfaces/callback/ILockCallback.sol";
-import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/contracts/types/PoolId.sol";
-import {PoolKey} from "@uniswap/v4-core/contracts/types/PoolKey.sol";
-import {FullMath} from "@uniswap/v4-core/contracts/libraries/FullMath.sol";
-import {UniswapV4ERC20} from "../../libraries/UniswapV4ERC20.sol";
-import {FixedPoint96} from "@uniswap/v4-core/contracts/libraries/FixedPoint96.sol";
+import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
+import {PoolManager} from "v4-core/PoolManager.sol";
+import {Hooks} from "v4-core/libraries/Hooks.sol";
+import {BaseHook} from "periphery-next/BaseHook.sol";
+import {SafeCast} from "v4-core/libraries/SafeCast.sol";
+import {LiquidityAmounts} from "periphery-next/libraries/LiquidityAmounts.sol";
+import {IHooks} from "v4-core/interfaces/IHooks.sol";
+import {CurrencyLibrary, Currency} from "v4-core/types/Currency.sol";
+import {TickMath} from "v4-core/libraries/TickMath.sol";
+import {BalanceDelta} from "v4-core/types/BalanceDelta.sol";
+import {IERC20Minimal} from "v4-core/interfaces/external/IERC20Minimal.sol";
+import {ILockCallback} from "v4-core/interfaces/callback/ILockCallback.sol";
+import {PoolId, PoolIdLibrary} from "v4-core/types/PoolId.sol";
+import {PoolKey} from "v4-core/types/PoolKey.sol";
+import {FullMath} from "v4-core/libraries/FullMath.sol";
+import {UniswapV4ERC20} from "periphery-next/libraries/UniswapV4ERC20.sol";
+import {FixedPoint96} from "v4-core/libraries/FixedPoint96.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
-import "../../libraries/LiquidityAmounts.sol";
 
-contract FullRange is BaseHook, ILockCallback {
+contract HippityHook is BaseHook, ILockCallback {
     using CurrencyLibrary for Currency;
     using PoolIdLibrary for PoolKey;
     using SafeCast for uint256;
@@ -215,7 +215,7 @@ contract FullRange is BaseHook, ILockCallback {
 
         poolInfo[poolId] = PoolInfo({hasAccruedFees: false, liquidityToken: poolToken});
 
-        return FullRange.beforeInitialize.selector;
+        return HippityHook.beforeInitialize.selector;
     }
 
     function beforeModifyPosition(
@@ -226,7 +226,7 @@ contract FullRange is BaseHook, ILockCallback {
     ) external view override returns (bytes4) {
         if (sender != address(this)) revert SenderMustBeHook();
 
-        return FullRange.beforeModifyPosition.selector;
+        return HippityHook.beforeModifyPosition.selector;
     }
 
     function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata, bytes calldata)
@@ -367,61 +367,6 @@ contract FullRange is BaseHook, ILockCallback {
             IPoolManager.ModifyPositionParams({
                 tickLower: lowerTick,
                 tickUpper: upperTick,
-                liquidityDelta: liquidity.toInt256()
-            }),
-            ZERO_BYTES
-        );
-
-        // Donate any "dust" from the sqrtRatio change as fees
-        uint128 donateAmount0 = uint128(-balanceDelta.amount0() - balanceDeltaAfter.amount0());
-        uint128 donateAmount1 = uint128(-balanceDelta.amount1() - balanceDeltaAfter.amount1());
-
-        poolManager.donate(key, donateAmount0, donateAmount1, ZERO_BYTES);
-    }
-
-    function _rebalance(PoolKey memory key) public {
-        PoolId poolId = key.toId();
-        BalanceDelta balanceDelta = poolManager.modifyPosition(
-            key,
-            IPoolManager.ModifyPositionParams({
-                tickLower: MIN_TICK,
-                tickUpper: MAX_TICK,
-                liquidityDelta: -(poolManager.getLiquidity(poolId).toInt256())
-            }),
-            ZERO_BYTES
-        );
-
-        uint160 newSqrtPriceX96 = (
-            FixedPointMathLib.sqrt(
-                FullMath.mulDiv(uint128(-balanceDelta.amount1()), FixedPoint96.Q96, uint128(-balanceDelta.amount0()))
-            ) * FixedPointMathLib.sqrt(FixedPoint96.Q96)
-        ).toUint160();
-
-        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
-
-        poolManager.swap(
-            key,
-            IPoolManager.SwapParams({
-                zeroForOne: newSqrtPriceX96 < sqrtPriceX96,
-                amountSpecified: MAX_INT,
-                sqrtPriceLimitX96: newSqrtPriceX96
-            }),
-            ZERO_BYTES
-        );
-
-        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
-            newSqrtPriceX96,
-            TickMath.getSqrtRatioAtTick(MIN_TICK),
-            TickMath.getSqrtRatioAtTick(MAX_TICK),
-            uint256(uint128(-balanceDelta.amount0())),
-            uint256(uint128(-balanceDelta.amount1()))
-        );
-
-        BalanceDelta balanceDeltaAfter = poolManager.modifyPosition(
-            key,
-            IPoolManager.ModifyPositionParams({
-                tickLower: MIN_TICK,
-                tickUpper: MAX_TICK,
                 liquidityDelta: liquidity.toInt256()
             }),
             ZERO_BYTES
