@@ -23,6 +23,7 @@ import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 
 // Pool Manager related contracts
 import {PoolManager} from "v4-core/PoolManager.sol";
+import {PoolSwapTest} from "v4-core/test/PoolSwapTest.sol";
 
 // Our contracts
 import {MyHook} from "../src/MyHook.sol";
@@ -42,6 +43,10 @@ contract MyHookTest is Test, GasSnapshot {
 
     // poolManager is the Uniswap v4 Pool Manager
     PoolManager poolManager;
+
+    // swapRouter is the test-version of the contract that allows
+    // users to execute swaps on Uniswap v4
+    PoolSwapTest swapRouter;
 
     // token0 and token1 are the two tokens in the pool
     TestERC20 token0;
@@ -100,6 +105,9 @@ contract MyHookTest is Test, GasSnapshot {
     }
 
     function _initializePool() private {
+        // Deploy the test-versions of swapRouter
+        swapRouter = new PoolSwapTest(IPoolManager(address(poolManager)));
+
         // Specify the pool key and pool id for the new pool
         poolKey = PoolKey({
             currency0: Currency.wrap(address(token0)),
@@ -159,9 +167,18 @@ contract MyHookTest is Test, GasSnapshot {
         hook.kissSelf();
     }
 
-    function test_swap() public {
-        console.logInt(123);
+    function test_mitigateLoop() public {
         IPoolManager.SwapParams memory params = IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 10000000, sqrtPriceLimitX96: SQRT_RATIO_1_2});
         hook.swap(address(this), poolKey, params);
+    }
+
+    function test_rebalance() public {
+        // Approve the tokens for swapping through the swapRouter
+        token0.approve(address(swapRouter), 100 ether);
+        token1.approve(address(swapRouter), 100 ether);
+
+        IPoolManager.SwapParams memory params = IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 10000000, sqrtPriceLimitX96: SQRT_RATIO_1_2});
+        PoolSwapTest.TestSettings memory testSettings = PoolSwapTest.TestSettings({withdrawTokens: true, settleUsingTransfer: true});
+        swapRouter.swap(poolKey, params, testSettings, ZERO_BYTES);
     }
 }
