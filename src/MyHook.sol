@@ -79,12 +79,48 @@ contract MyHook is BaseHook, ILockCallback {
     }
 
     function beforeSwap(
-        address,
+        address sender,
         PoolKey calldata key,
         IPoolManager.SwapParams calldata,
         bytes calldata
     ) external override returns (bytes4) {
-        // doSomethingInteresting
+
+        // prevent infinite loops
+        if (sender == address(this)) { 
+            console.logString("Self invokation mitigated");
+            return MyHook.beforeSwap.selector;
+        }
+
+        console.logString("beforeSwap hook triggered, rebalancing...");
+
+        // TODO only rebalance if oracle balance moved by x%
+
+        // three ticks, each 60 spacing
+        int24 tickRadius = 3 * 60;
+
+        uint oraclePrice = oracle.read();
+        uint160 newSqrtPriceX96 = sqrtX96ify(oraclePrice);
+
+        int24 centerTick = TickMath.getTickAtSqrtRatio(newSqrtPriceX96);
+        int24 lowerTick = centerTick - tickRadius;
+        int24 upperTick = centerTick + tickRadius;
+
+        // (1) withdraw all liquidity
+
+        console.logString("(1) withdrawing all liquidity...");
+        PoolId poolId = key.toId();
+        BalanceDelta balanceDelta = _modifyPosition(
+            address(this),
+            key,
+            IPoolManager.ModifyPositionParams({
+                tickLower: MIN_TICK,
+                tickUpper: MAX_TICK,
+                liquidityDelta: -(poolManager.getLiquidity(poolId).toInt256())
+            })
+        );
+
+        // (2)
+
         return MyHook.beforeSwap.selector;
     }
 
@@ -93,9 +129,17 @@ contract MyHook is BaseHook, ILockCallback {
         PoolKey calldata poolKey,
         IPoolManager.ModifyPositionParams calldata params
     ) external {
-        poolManager.lock(abi.encode(
+        _modifyPosition(sender, poolKey, params);
+    }
+
+    function _modifyPosition(
+        address sender,
+        PoolKey memory poolKey,
+        IPoolManager.ModifyPositionParams memory params
+    ) internal returns (BalanceDelta) {
+        return abi.decode(poolManager.lock(abi.encode(
             CallbackData(0, abi.encode(ModifyPositionData(sender, poolKey, params)))
-        ));
+        )), (BalanceDelta));
     }
 
     function swap(
@@ -169,15 +213,24 @@ contract MyHook is BaseHook, ILockCallback {
         }
     }
 
+    // function sqrtX96ify_funky(uint price) internal returns (uint160) {
+    //     return (
+    //         FixedPointMathLib.sqrt(
+    //             price * FixedPoint96.Q96
+    //         ) * FixedPointMathLib.sqrt(FixedPoint96.Q96)
+    //     ).toUint160();
+    // }
+
+    function sqrtX96ify(uint price) internal returns (uint160) {
+        return (
+            FixedPointMathLib.sqrt(price) * FixedPoint96.Q96
+        ).toUint160();
+    }
+
     function kissSelf() external {
         selfKisser.selfKiss(address(0xc8A1F9461115EF3C1E84Da6515A88Ea49CA97660), address(this));
     }
 
-    function fetchPrice() external {
-        uint price = oracle.read();
-        console.logInt(int256(price));
-    }
-    
     function _handleSwap(
         address sender,
         PoolKey memory key,

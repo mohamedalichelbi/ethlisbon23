@@ -164,8 +164,4 @@ contract MyHookTest is Test, GasSnapshot {
         IPoolManager.SwapParams memory params = IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 10000000, sqrtPriceLimitX96: SQRT_RATIO_1_2});
         hook.swap(address(this), poolKey, params);
     }
-
-    function test_oracle() public {
-        hook.fetchPrice();
-    }
 }
