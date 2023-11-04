@@ -30,6 +30,8 @@ import {PoolSwapTest} from "v4-core/test/PoolSwapTest.sol";
 import {MyHook} from "../src/MyHook.sol";
 import {MyHookStub} from "../src/MyHookStub.sol";
 
+import "forge-std/console.sol";
+
 contract MyHookTest is Test, GasSnapshot {
     // Use the libraries
     using PoolIdLibrary for PoolKey;
@@ -187,6 +189,8 @@ contract MyHookTest is Test, GasSnapshot {
     
         PoolSwapTest.TestSettings memory testSettings =
             PoolSwapTest.TestSettings({withdrawTokens: true, settleUsingTransfer: true});
+
+        console.logInt(123);
 
         swapRouter.swap(poolKey, params, testSettings, ZERO_BYTES);
         hook.extRebalance(poolKey);
