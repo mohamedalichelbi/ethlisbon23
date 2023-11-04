@@ -140,22 +140,22 @@ contract MyHookTest is Test, GasSnapshot {
         hook.modifyPosition(
             address(this),
             poolKey,
-            IPoolManager.ModifyPositionParams(-60, 60, 10 ether)
+            IPoolManager.ModifyPositionParams(-180, 180, 10 ether)
         );
 
-        // Add liquidity from -120 to +120
-        hook.modifyPosition(
-            address(hook),
-            poolKey,
-            IPoolManager.ModifyPositionParams(-60, 60, -1 ether)
-        );
+        // // Add liquidity from -120 to +120
+        // hook.modifyPosition(
+        //     address(this),
+        //     poolKey,
+        //     IPoolManager.ModifyPositionParams(-120, 120, 10 ether)
+        // );
 
-        // Add liquidity from MIN_TICK to MAX_TICK
-        hook.modifyPosition(
-            address(this),
-            poolKey,
-            IPoolManager.ModifyPositionParams(TickMath.minUsableTick(60), TickMath.maxUsableTick(60), 10 ether)
-        );
+        // // Add liquidity from MIN_TICK to MAX_TICK
+        // hook.modifyPosition(
+        //     address(this),
+        //     poolKey,
+        //     IPoolManager.ModifyPositionParams(TickMath.minUsableTick(60), TickMath.maxUsableTick(60), 10 ether)
+        // );
     }
 
     function setUp() public {
@@ -164,7 +164,7 @@ contract MyHookTest is Test, GasSnapshot {
         _stubValidateHookAddress();
         _initializePool();
         _addLiquidityToPool();
-        hook.kissSelf();
+        hook.init(); // TODO make it beforeInitialized hook
     }
 
     function test_mitigateLoop() public {

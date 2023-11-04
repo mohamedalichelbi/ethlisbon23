@@ -42,6 +42,8 @@ contract MyHook is BaseHook, ILockCallback {
 
     int256 internal constant MAX_INT = type(int256).max;
 
+    int24 prevCenterTick;
+
     IChronicle constant oracle = IChronicle(address(0xc8A1F9461115EF3C1E84Da6515A88Ea49CA97660));
     ISelfKisser constant selfKisser = ISelfKisser(address(0x0Dcc19657007713483A5cA76e6A7bbe5f56EA37d));
 
@@ -113,25 +115,27 @@ contract MyHook is BaseHook, ILockCallback {
         uint128 fullRangeLiquidity = poolManager.getLiquidity(
             poolId, 
             address(this),
-            MIN_TICK,
-            MAX_TICK,
-        ).toInt256();
+            prevCenterTick - tickRadius,
+            prevCenterTick + tickRadius
+        );
 
-        console.logString("fullRangeLiquidity:")
-        console.logUint(fullRangeLiquidity)
+        console.logString("fullRangeLiquidity:");
+        console.logUint(fullRangeLiquidity);
 
         BalanceDelta balanceDelta = _modifyPosition(
             address(this),
             key,
             IPoolManager.ModifyPositionParams({
-                tickLower: MIN_TICK,
-                tickUpper: MAX_TICK,
-                liquidityDelta: -(fullRangeLiquidity)
+                tickLower: prevCenterTick - tickRadius,
+                tickUpper: prevCenterTick + tickRadius,
+                liquidityDelta: -(fullRangeLiquidity.toInt256())
             })
         );
 
         // (2)
 
+
+        prevCenterTick = centerTick;
         return MyHook.beforeSwap.selector;
     }
 
@@ -238,8 +242,9 @@ contract MyHook is BaseHook, ILockCallback {
         ).toUint160();
     }
 
-    function kissSelf() external {
+    function init() external {
         selfKisser.selfKiss(address(0xc8A1F9461115EF3C1E84Da6515A88Ea49CA97660), address(this));
+        prevCenterTick = 0;
     }
 
     function _handleSwap(
