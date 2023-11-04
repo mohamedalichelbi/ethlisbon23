@@ -23,8 +23,6 @@ import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 
 // Pool Manager related contracts
 import {PoolManager} from "v4-core/PoolManager.sol";
-import {PoolModifyPositionTest} from "v4-core/test/PoolModifyPositionTest.sol";
-import {PoolSwapTest} from "v4-core/test/PoolSwapTest.sol";
 
 // Our contracts
 import {MyHook} from "../src/MyHook.sol";
@@ -43,14 +41,6 @@ contract MyHookTest is Test, GasSnapshot {
 
     // poolManager is the Uniswap v4 Pool Manager
     PoolManager poolManager;
-
-    // modifyPositionRouter is the test-version of the contract that allows
-    // liquidity providers to add/remove/update their liquidity positions
-    PoolModifyPositionTest modifyPositionRouter;
-
-    // swapRouter is the test-version of the contract that allows
-    // users to execute swaps on Uniswap v4
-    PoolSwapTest swapRouter;
 
     // token0 and token1 are the two tokens in the pool
     TestERC20 token0;
@@ -109,10 +99,6 @@ contract MyHookTest is Test, GasSnapshot {
     }
 
     function _initializePool() private {
-        // Deploy the test-versions of modifyPositionRouter and swapRouter
-        modifyPositionRouter = new PoolModifyPositionTest(IPoolManager(address(poolManager)));
-        swapRouter = new PoolSwapTest(IPoolManager(address(poolManager)));
-
         // Specify the pool key and pool id for the new pool
         poolKey = PoolKey({
             currency0: Currency.wrap(address(token0)),
@@ -132,7 +118,7 @@ contract MyHookTest is Test, GasSnapshot {
         token0.mint(address(this), 100 ether);
         token1.mint(address(this), 100 ether);
 
-        // Approve the modifyPositionRouter to spend your tokens
+        // Approve the hook to spend our tokens
         token0.approve(address(hook), 100 ether);
         token1.approve(address(hook), 100 ether);
 
@@ -161,10 +147,6 @@ contract MyHookTest is Test, GasSnapshot {
             poolKey,
             IPoolManager.ModifyPositionParams(TickMath.minUsableTick(60), TickMath.maxUsableTick(60), 10 ether)
         );
-
-        // Approve the tokens for swapping through the swapRouter
-        token0.approve(address(swapRouter), 100 ether);
-        token1.approve(address(swapRouter), 100 ether);
     }
 
     function setUp() public {
@@ -176,14 +158,8 @@ contract MyHookTest is Test, GasSnapshot {
     }
 
     function test_swap() public {
-        IPoolManager.SwapParams memory params =
-            IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 10000000, sqrtPriceLimitX96: SQRT_RATIO_1_2});
-    
-        PoolSwapTest.TestSettings memory testSettings =
-            PoolSwapTest.TestSettings({withdrawTokens: true, settleUsingTransfer: true});
-
         console.logInt(123);
-
-        swapRouter.swap(poolKey, params, testSettings, ZERO_BYTES);
+        IPoolManager.SwapParams memory params = IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 10000000, sqrtPriceLimitX96: SQRT_RATIO_1_2});
+        hook.swap(address(this), poolKey, params);
     }
 }

@@ -40,10 +40,20 @@ contract MyHook is BaseHook, ILockCallback {
     int256 internal constant MAX_INT = type(int256).max;
 
     struct CallbackData {
+        uint8 reason;
+        bytes raw;
+    }
+
+    struct ModifyPositionData {
         address sender;
         PoolKey poolKey;
         IPoolManager.ModifyPositionParams params;
-        uint8 reason;
+    }
+
+    struct SwapData {
+        address sender;
+        PoolKey poolKey;
+        IPoolManager.SwapParams params;
     }
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
@@ -77,7 +87,19 @@ contract MyHook is BaseHook, ILockCallback {
         PoolKey calldata poolKey,
         IPoolManager.ModifyPositionParams calldata params
     ) external {
-        abi.decode(poolManager.lock(abi.encode(CallbackData(sender, poolKey, params, 0))), (BalanceDelta));
+        poolManager.lock(abi.encode(
+            CallbackData(0, abi.encode(ModifyPositionData(sender, poolKey, params)))
+        ));
+    }
+
+    function swap(
+        address sender,
+        PoolKey calldata poolKey,
+        IPoolManager.SwapParams calldata params
+    ) external {
+        poolManager.lock(abi.encode(
+            CallbackData(1, abi.encode(SwapData(sender, poolKey, params)))
+        ));
     }
 
     function lockAcquired(bytes calldata rawData)
@@ -92,10 +114,13 @@ contract MyHook is BaseHook, ILockCallback {
         // Reason 0: modifyPosition
         if (data.reason == 0) {
             console.logString("LockAcquired: REASON 0");
-            _handleModifyPosition(data.sender, data.poolKey, data.params);
+            ModifyPositionData memory modifyPositionData = abi.decode(data.raw, (ModifyPositionData));
+            _handleModifyPosition(modifyPositionData.sender, modifyPositionData.poolKey, modifyPositionData.params);
         }
         else if (data.reason == 1) {
             console.logString("LockAcquired: REASON 1");
+            SwapData memory swapData = abi.decode(data.raw, (SwapData));
+            _handleSwap(swapData.sender, swapData.poolKey, swapData.params);
         }
 
 
@@ -135,6 +160,44 @@ contract MyHook is BaseHook, ILockCallback {
         }
         if (delta.amount1() < 0) {
             poolManager.take(key.currency1, sender, uint128(-delta.amount1()));
+        }
+    }
+
+    function _handleSwap(
+        address sender,
+        PoolKey memory key,
+        IPoolManager.SwapParams memory params
+    ) internal {
+        BalanceDelta delta = poolManager.swap(key, params, ZERO_BYTES);
+
+        if (params.zeroForOne) {
+            if (delta.amount0() > 0) {
+                if (key.currency0.isNative()) {
+                    poolManager.settle{value: uint128(delta.amount0())}(key.currency0);
+                } else {
+                    IERC20Minimal(Currency.unwrap(key.currency0)).transferFrom(
+                        sender, address(poolManager), uint128(delta.amount0())
+                    );
+                    poolManager.settle(key.currency0);
+                }
+            }
+            if (delta.amount1() < 0) {
+                poolManager.take(key.currency1, sender, uint128(-delta.amount1()));
+            }
+        } else {
+            if (delta.amount1() > 0) {
+                if (key.currency1.isNative()) {
+                    poolManager.settle{value: uint128(delta.amount1())}(key.currency1);
+                } else {
+                    IERC20Minimal(Currency.unwrap(key.currency1)).transferFrom(
+                        sender, address(poolManager), uint128(delta.amount1())
+                    );
+                    poolManager.settle(key.currency1);
+                }
+            }
+            if (delta.amount0() < 0) {
+                poolManager.take(key.currency0, sender, uint128(-delta.amount0()));
+            }
         }
     }
 
