@@ -11,7 +11,7 @@ contract MyHookStub is MyHook {
     constructor(
         IPoolManager _poolManager,
         MyHook addressToEtch
-    ) MyHook(_poolManager, "") {}
+    ) MyHook(_poolManager) {}
 
     // make this a no-op in testing
     function validateHookAddress(BaseHook _this) internal pure override {}

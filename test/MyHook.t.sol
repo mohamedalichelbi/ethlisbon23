@@ -133,8 +133,8 @@ contract MyHookTest is Test, GasSnapshot {
         token1.mint(address(this), 100 ether);
 
         // Approve the modifyPositionRouter to spend your tokens
-        token0.approve(address(modifyPositionRouter), 100 ether);
-        token1.approve(address(modifyPositionRouter), 100 ether);
+        token0.approve(address(hook), 100 ether);
+        token1.approve(address(hook), 100 ether);
 
         // Add liquidity across different tick ranges
         // First, from -60 to +60
@@ -142,28 +142,24 @@ contract MyHookTest is Test, GasSnapshot {
         // Then, from minimum possible tick to maximum possible tick
 
         // Add liquidity from -60 to +60
-        modifyPositionRouter.modifyPosition(
+        hook.modifyPosition(
+            address(this),
             poolKey,
-            IPoolManager.ModifyPositionParams(-60, 60, 10 ether),
-            ZERO_BYTES
+            IPoolManager.ModifyPositionParams(-60, 60, 10 ether)
         );
 
         // Add liquidity from -120 to +120
-        modifyPositionRouter.modifyPosition(
+        hook.modifyPosition(
+            address(this),
             poolKey,
-            IPoolManager.ModifyPositionParams(-120, 120, 10 ether),
-            ZERO_BYTES
+            IPoolManager.ModifyPositionParams(-120, 120, 10 ether)
         );
 
-        // Add liquidity from minimum tick to maximum tick
-        modifyPositionRouter.modifyPosition(
+        // Add liquidity from MIN_TICK to MAX_TICK
+        hook.modifyPosition(
+            address(this),
             poolKey,
-            IPoolManager.ModifyPositionParams(
-                TickMath.minUsableTick(60),
-                TickMath.maxUsableTick(60),
-                50 ether
-            ),
-            ZERO_BYTES
+            IPoolManager.ModifyPositionParams(TickMath.minUsableTick(60), TickMath.maxUsableTick(60), 10 ether)
         );
 
         // Approve the tokens for swapping through the swapRouter
@@ -179,10 +175,6 @@ contract MyHookTest is Test, GasSnapshot {
         _addLiquidityToPool();
     }
 
-    function test_tests() public {
-        assertEq(true, true);
-    }
-
     function test_swap() public {
         IPoolManager.SwapParams memory params =
             IPoolManager.SwapParams({zeroForOne: true, amountSpecified: 10000000, sqrtPriceLimitX96: SQRT_RATIO_1_2});
@@ -193,6 +185,5 @@ contract MyHookTest is Test, GasSnapshot {
         console.logInt(123);
 
         swapRouter.swap(poolKey, params, testSettings, ZERO_BYTES);
-        hook.extRebalance(poolKey);
     }
 }
