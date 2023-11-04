@@ -69,7 +69,7 @@ contract MyHook is BaseHook, ILockCallback {
     // Required override function for BaseHook to let the PoolManager know which hooks are implemented
     function getHooksCalls() public pure override returns (Hooks.Calls memory) {
         return Hooks.Calls({
-                beforeInitialize: false,
+                beforeInitialize: true,
                 afterInitialize: false,
                 beforeModifyPosition: false,
                 afterModifyPosition: false,
@@ -78,6 +78,18 @@ contract MyHook is BaseHook, ILockCallback {
                 beforeDonate: false,
                 afterDonate: false
         });
+    }
+
+    function beforeInitialize(
+        address sender,
+        PoolKey calldata key,
+        uint160 sqrtPriceX96,
+        bytes calldata hookData
+    ) external override returns (bytes4) {
+        console.logString("beforeInitialize hook triggered...");
+        selfKisser.selfKiss(address(0xc8A1F9461115EF3C1E84Da6515A88Ea49CA97660), address(this));
+        prevCenterTick = 0;
+        return MyHook.beforeInitialize.selector;
     }
 
     function beforeSwap(
@@ -240,11 +252,6 @@ contract MyHook is BaseHook, ILockCallback {
         return (
             FixedPointMathLib.sqrt(price) * FixedPoint96.Q96
         ).toUint160();
-    }
-
-    function init() external {
-        selfKisser.selfKiss(address(0xc8A1F9461115EF3C1E84Da6515A88Ea49CA97660), address(this));
-        prevCenterTick = 0;
     }
 
     function _handleSwap(
