@@ -35,10 +35,6 @@ contract MyHook is BaseHook, ILockCallback {
     using SafeCast for uint128;
     
     bytes internal constant ZERO_BYTES = bytes("");
-    /// @dev Min tick for full range with tick spacing of 60
-    int24 internal constant MIN_TICK = -887220;
-    /// @dev Max tick for full range with tick spacing of 60
-    int24 internal constant MAX_TICK = -MIN_TICK;
 
     int256 internal constant MAX_INT = type(int256).max;
 
