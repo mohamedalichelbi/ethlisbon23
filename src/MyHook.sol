@@ -133,8 +133,8 @@ contract MyHook is BaseHook, ILockCallback {
         console.logString("(3) redeposit all liquidity...");
 
         // APPROVE ourselves to spend our own money
-        IERC20Minimal(Currency.unwrap(key.currency0)).approve(address(this), uint256(balanceDelta.amount0()));
-        IERC20Minimal(Currency.unwrap(key.currency1)).approve(address(this), uint256(balanceDelta.amount1()));
+        IERC20Minimal(Currency.unwrap(key.currency0)).approve(address(this), uint256(uint128(balanceDelta.amount0())));
+        IERC20Minimal(Currency.unwrap(key.currency1)).approve(address(this), uint256(uint128(balanceDelta.amount1())));
 
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
             newSqrtPriceX96,
