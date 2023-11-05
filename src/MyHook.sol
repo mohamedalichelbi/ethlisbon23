@@ -130,37 +130,7 @@ contract MyHook is BaseHook, ILockCallback {
         _slipToOraclePrice(key, newSqrtPriceX96);
 
         // (3) redeposit all liquidity
-        console.logString("(3) redeposit all liquidity...");
-
-        // APPROVE ourselves to spend our own money
-        IERC20Minimal(Currency.unwrap(key.currency0)).approve(address(this), uint256(uint128(balanceDelta.amount0())));
-        IERC20Minimal(Currency.unwrap(key.currency1)).approve(address(this), uint256(uint128(balanceDelta.amount1())));
-
-        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
-            newSqrtPriceX96,
-            TickMath.getSqrtRatioAtTick(centerTick - TICK_RADIUS),
-            TickMath.getSqrtRatioAtTick(centerTick + TICK_RADIUS),
-            uint256(uint128(-balanceDelta.amount0())),
-            uint256(uint128(-balanceDelta.amount1()))
-        );
-
-        console.logString("liquidity:");
-        console.logUint(liquidity);
-
-        BalanceDelta balanceDeltaAfter = _modifyPosition(
-            address(this),
-            key,
-            IPoolManager.ModifyPositionParams({
-                tickLower: centerTick - TICK_RADIUS,
-                tickUpper: centerTick + TICK_RADIUS,
-                liquidityDelta: liquidity.toInt256()
-            })
-        );
-
-        console.logString("balanceDeltaAfter.amount0():");
-        console.logInt(balanceDeltaAfter.amount0());
-        console.logString("balanceDeltaAfter.amount1():");
-        console.logInt(balanceDeltaAfter.amount1());
+       _redepositLiquidity(key, balanceDelta, centerTick, newSqrtPriceX96);
 
         prevCenterTick = centerTick;
         return MyHook.beforeSwap.selector;
@@ -221,6 +191,42 @@ contract MyHook is BaseHook, ILockCallback {
         (uint160 sqrtPriceX96AfterSwap,,,) = poolManager.getSlot0(poolId);
         console.logString("sqrtPriceX96AfterSwap:");
         console.logUint(sqrtPriceX96AfterSwap);
+
+    }
+
+    function _redepositLiquidity(PoolKey memory key, BalanceDelta balanceDelta, int24 centerTick, uint160 newSqrtPriceX96) internal {
+
+        console.logString("(3) redeposit all liquidity...");
+
+        // APPROVE ourselves to spend our own money
+        IERC20Minimal(Currency.unwrap(key.currency0)).approve(address(this), uint256(uint128(balanceDelta.amount0())));
+        IERC20Minimal(Currency.unwrap(key.currency1)).approve(address(this), uint256(uint128(balanceDelta.amount1())));
+
+        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
+            newSqrtPriceX96,
+            TickMath.getSqrtRatioAtTick(centerTick - TICK_RADIUS),
+            TickMath.getSqrtRatioAtTick(centerTick + TICK_RADIUS),
+            uint256(uint128(-balanceDelta.amount0())),
+            uint256(uint128(-balanceDelta.amount1()))
+        );
+
+        console.logString("liquidity:");
+        console.logUint(liquidity);
+
+        BalanceDelta balanceDeltaAfter = _modifyPosition(
+            address(this),
+            key,
+            IPoolManager.ModifyPositionParams({
+                tickLower: centerTick - TICK_RADIUS,
+                tickUpper: centerTick + TICK_RADIUS,
+                liquidityDelta: liquidity.toInt256()
+            })
+        );
+
+        console.logString("balanceDeltaAfter.amount0():");
+        console.logInt(balanceDeltaAfter.amount0());
+        console.logString("balanceDeltaAfter.amount1():");
+        console.logInt(balanceDeltaAfter.amount1());
 
     }
 
