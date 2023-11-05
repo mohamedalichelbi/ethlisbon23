@@ -42,8 +42,10 @@ contract MyHook is BaseHook, ILockCallback {
 
     int256 internal constant MAX_INT = type(int256).max;
 
+    
+    int24 internal constant TICK_SPACING = 60;
     // three ticks, each 60 spacing
-    int24 internal constant TICK_RADIUS = 180;
+    int24 internal constant TICK_RADIUS = 3 * TICK_SPACING;
 
     int24 prevCenterTick;
 
@@ -112,10 +114,14 @@ contract MyHook is BaseHook, ILockCallback {
 
         // TODO only rebalance if oracle balance moved by x%
 
-        uint oraclePrice = oracle.read();
+        uint oraclePrice = oracle.read() / 10**18;
+        console.logString("Oracle price:");
+        console.logUint(oraclePrice);
+
         uint160 newSqrtPriceX96 = sqrtX96ify(oraclePrice);
 
-        int24 centerTick = TickMath.getTickAtSqrtRatio(newSqrtPriceX96);
+        int24 targetTick = TickMath.getTickAtSqrtRatio(newSqrtPriceX96);
+        int24 centerTick = (targetTick / TICK_SPACING) * TICK_SPACING;
 
         // (1) withdraw all liquidity
         BalanceDelta balanceDelta = _withdrawLiquidity(key);
@@ -152,6 +158,11 @@ contract MyHook is BaseHook, ILockCallback {
                 liquidityDelta: liquidity.toInt256()
             })
         );
+
+        console.logString("balanceDeltaAfter.amount0():");
+        console.logInt(balanceDeltaAfter.amount0());
+        console.logString("balanceDeltaAfter.amount1():");
+        console.logInt(balanceDeltaAfter.amount1());
 
         prevCenterTick = centerTick;
         return MyHook.beforeSwap.selector;
@@ -264,24 +275,29 @@ contract MyHook is BaseHook, ILockCallback {
         if (data.reason == 0) {
             console.logString("LockAcquired: REASON 0");
             ModifyPositionData memory modifyPositionData = abi.decode(data.raw, (ModifyPositionData));
-            _handleModifyPosition(modifyPositionData.sender, modifyPositionData.poolKey, modifyPositionData.params);
+            delta = _handleModifyPosition(modifyPositionData.sender, modifyPositionData.poolKey, modifyPositionData.params);
+            
         }
         else if (data.reason == 1) {
             console.logString("LockAcquired: REASON 1");
             SwapData memory swapData = abi.decode(data.raw, (SwapData));
-            _handleSwap(swapData.sender, swapData.poolKey, swapData.params);
+            delta = _handleSwap(swapData.sender, swapData.poolKey, swapData.params);
         }
 
-
-        return abi.encode(true);
+        return abi.encode(delta);
     }
 
     function _handleModifyPosition(
         address sender,
         PoolKey memory key,
         IPoolManager.ModifyPositionParams memory params
-    ) internal {
+    ) internal returns (BalanceDelta) {
         BalanceDelta delta = poolManager.modifyPosition(key, params, ZERO_BYTES);
+
+        console.logString("delta.amount0():");
+        console.logInt(delta.amount0());
+        console.logString("delta.amount1():");
+        console.logInt(delta.amount1());
 
         if (delta.amount0() > 0) {
             if (key.currency0.isNative()) {
@@ -310,6 +326,8 @@ contract MyHook is BaseHook, ILockCallback {
         if (delta.amount1() < 0) {
             poolManager.take(key.currency1, sender, uint128(-delta.amount1()));
         }
+
+        return delta;
     }
 
     // function sqrtX96ify_funky(uint price) internal returns (uint160) {
@@ -330,7 +348,7 @@ contract MyHook is BaseHook, ILockCallback {
         address sender,
         PoolKey memory key,
         IPoolManager.SwapParams memory params
-    ) internal {
+    ) internal returns (BalanceDelta) {
         BalanceDelta delta = poolManager.swap(key, params, ZERO_BYTES);
 
         if (params.zeroForOne) {
@@ -362,6 +380,8 @@ contract MyHook is BaseHook, ILockCallback {
                 poolManager.take(key.currency0, sender, uint128(-delta.amount0()));
             }
         }
+
+        return delta;
     }
 
 }
