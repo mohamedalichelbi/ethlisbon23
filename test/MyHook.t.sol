@@ -39,7 +39,7 @@ contract MyHookTest is Test, GasSnapshot {
 
     // Hardcode the address for our hook instead of deploying it
     // We will overwrite the storage to replace code at this address with code from the stub
-    MyHook hook = MyHook(address(uint160(Hooks.BEFORE_SWAP_FLAG)));
+    MyHook hook = MyHook(address(uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_INITIALIZE_FLAG)));
 
     // poolManager is the Uniswap v4 Pool Manager
     PoolManager poolManager;
@@ -164,7 +164,6 @@ contract MyHookTest is Test, GasSnapshot {
         _stubValidateHookAddress();
         _initializePool();
         _addLiquidityToPool();
-        hook.init(); // TODO make it beforeInitialized hook
     }
 
     function test_mitigateLoop() public {
