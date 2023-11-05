@@ -42,6 +42,9 @@ contract MyHook is BaseHook, ILockCallback {
 
     int256 internal constant MAX_INT = type(int256).max;
 
+    // three ticks, each 60 spacing
+    int24 internal constant TICK_RADIUS = 180;
+
     int24 prevCenterTick;
 
     IChronicle constant oracle = IChronicle(address(0xc8A1F9461115EF3C1E84Da6515A88Ea49CA97660));
@@ -97,46 +100,107 @@ contract MyHook is BaseHook, ILockCallback {
 
         // TODO only rebalance if oracle balance moved by x%
 
-        // three ticks, each 60 spacing
-        int24 tickRadius = 3 * 60;
-
         uint oraclePrice = oracle.read();
         uint160 newSqrtPriceX96 = sqrtX96ify(oraclePrice);
 
         int24 centerTick = TickMath.getTickAtSqrtRatio(newSqrtPriceX96);
-        int24 lowerTick = centerTick - tickRadius;
-        int24 upperTick = centerTick + tickRadius;
 
         // (1) withdraw all liquidity
+        BalanceDelta balanceDelta = _withdrawLiquidity(key);
+        
+        // (2) slip to oracle price
+        _slipToOraclePrice(key, newSqrtPriceX96);
+
+        // (3) redeposit all liquidity
+
+        console.logString("(3) redeposit all liquidity...");
+
+        console.logString("balanceDelta.amount0():");
+        console.logInt(balanceDelta.amount0());
+        console.logString("balanceDelta.amount1():");
+        console.logInt(balanceDelta.amount1());
+
+        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
+            newSqrtPriceX96,
+            TickMath.getSqrtRatioAtTick(centerTick - TICK_RADIUS),
+            TickMath.getSqrtRatioAtTick(centerTick + TICK_RADIUS),
+            uint256(uint128(-balanceDelta.amount0())),
+            uint256(uint128(-balanceDelta.amount1()))
+        );
+
+        console.logString("liquidity:");
+        console.logUint(liquidity);
+
+        BalanceDelta balanceDeltaAfter = _modifyPosition(
+            address(this),
+            key,
+            IPoolManager.ModifyPositionParams({
+                tickLower: centerTick - TICK_RADIUS,
+                tickUpper: centerTick + TICK_RADIUS,
+                liquidityDelta: liquidity.toInt256()
+            })
+        );
+
+        prevCenterTick = centerTick;
+        return MyHook.beforeSwap.selector;
+    }
+
+    function _withdrawLiquidity(PoolKey memory key) internal returns (BalanceDelta) {
 
         console.logString("(1) withdrawing all liquidity...");
+
         PoolId poolId = key.toId();
 
         uint128 fullRangeLiquidity = poolManager.getLiquidity(
             poolId, 
             address(this),
-            prevCenterTick - tickRadius,
-            prevCenterTick + tickRadius
+            prevCenterTick - TICK_RADIUS,
+            prevCenterTick + TICK_RADIUS
         );
 
         console.logString("fullRangeLiquidity:");
         console.logUint(fullRangeLiquidity);
 
-        BalanceDelta balanceDelta = _modifyPosition(
+        return _modifyPosition(
             address(this),
             key,
             IPoolManager.ModifyPositionParams({
-                tickLower: prevCenterTick - tickRadius,
-                tickUpper: prevCenterTick + tickRadius,
+                tickLower: prevCenterTick - TICK_RADIUS,
+                tickUpper: prevCenterTick + TICK_RADIUS,
                 liquidityDelta: -(fullRangeLiquidity.toInt256())
             })
         );
 
-        // (2)
+    }
 
+    function _slipToOraclePrice(PoolKey memory key, uint160 newSqrtPriceX96) internal {
 
-        prevCenterTick = centerTick;
-        return MyHook.beforeSwap.selector;
+        console.logString("(2) splipping to oracle price...");
+
+        PoolId poolId = key.toId();
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
+        
+        console.logString("sqrtPriceX96:");
+        console.logUint(sqrtPriceX96);
+        console.logString("newSqrtPriceX96:");
+        console.logUint(newSqrtPriceX96);
+
+        console.logString("Swapping...");
+
+        _swap(
+            address(this),
+            key,
+            IPoolManager.SwapParams({
+                zeroForOne: newSqrtPriceX96 < sqrtPriceX96,
+                amountSpecified: MAX_INT,
+                sqrtPriceLimitX96: newSqrtPriceX96
+            })
+        );
+
+        (uint160 sqrtPriceX96AfterSwap,,,) = poolManager.getSlot0(poolId);
+        console.logString("sqrtPriceX96AfterSwap:");
+        console.logUint(sqrtPriceX96AfterSwap);
+
     }
 
     function modifyPosition(
@@ -162,6 +226,14 @@ contract MyHook is BaseHook, ILockCallback {
         PoolKey calldata poolKey,
         IPoolManager.SwapParams calldata params
     ) external {
+        _swap(sender, poolKey, params);
+    }
+
+    function _swap(
+        address sender,
+        PoolKey memory poolKey,
+        IPoolManager.SwapParams memory params
+    ) internal {
         poolManager.lock(abi.encode(
             CallbackData(1, abi.encode(SwapData(sender, poolKey, params)))
         ));
