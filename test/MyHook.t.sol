@@ -127,9 +127,6 @@ contract MyHookTest is Test, GasSnapshot {
         token0.mint(address(this), 100 ether);
         token1.mint(address(this), 100 ether);
 
-        token0.mint(address(hook), 100000000000 ether);
-        token1.mint(address(hook), 100000000000 ether);
-
         // Approve the hook to spend our tokens
         token0.approve(address(hook), 100 ether);
         token1.approve(address(hook), 100 ether);

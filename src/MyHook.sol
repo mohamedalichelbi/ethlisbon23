@@ -130,13 +130,11 @@ contract MyHook is BaseHook, ILockCallback {
         _slipToOraclePrice(key, newSqrtPriceX96);
 
         // (3) redeposit all liquidity
-
         console.logString("(3) redeposit all liquidity...");
 
-        console.logString("balanceDelta.amount0():");
-        console.logInt(balanceDelta.amount0());
-        console.logString("balanceDelta.amount1():");
-        console.logInt(balanceDelta.amount1());
+        // APPROVE ourselves to spend our own money
+        IERC20Minimal(Currency.unwrap(key.currency0)).approve(address(this), uint256(balanceDelta.amount0()));
+        IERC20Minimal(Currency.unwrap(key.currency1)).approve(address(this), uint256(balanceDelta.amount1()));
 
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
             newSqrtPriceX96,
